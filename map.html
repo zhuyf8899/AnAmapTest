@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />  
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />  
+    <meta name="author" content="zhuyifan">
+    <link rel="icon" href="/TVCalendarAPI/build/image/favicon.ico">
+    <title>地图测试</title>
+    <link rel="stylesheet" href="//cdn.bootcss.com/bootstrap/3.3.5/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="/TVCalendarAPI/build/css/toastr.css" />
+    <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+    <!--[if lt IE 9]>
+      <script src="//cdn.bootcss.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+      <script src="//cdn.bootcss.com/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+  </head>
+
+  <body>
+    <script src="//cdn.bootcss.com/jquery/1.11.3/jquery.min.js"></script>
+    <script src="//cdn.bootcss.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+    <script src="/TVCalendarAPI/build/js/toastr.min.js"></script>
+    <script src="http://webapi.amap.com/maps?v=1.3&key=7c3b6c514342303f4d1f4c91f1af8a2c"></script>
+    <!--<style type="text/css">
+      body {
+        padding-top: 20px;
+        padding-bottom: 20px;
+        font-family: "Droid Sans",微软雅黑,"Lucida Grande","Lucida Sans",icomoon,Helvetica,Arial,Sans;
+      }
+
+      .navbar {
+        margin-bottom: 20px;
+      }
+    </style>-->
+    <style type="text/css">  
+      html{height:100%}  
+      body{height:100%;margin:0px;padding:0px}  
+      #map_container{height:80%}  
+      #config{height:20%;}
+      .marker {
+          color: #000000;
+          padding: 4px 10px;
+          border: 1px solid #fff;
+          white-space: nowrap;
+          font-size: 12px;
+          font-family: "Droid Sans",微软雅黑,"Lucida Grande","Lucida Sans",icomoon,Helvetica,Arial,Sans;
+          background-color: #ffffff;
+        }
+    </style> 
+    <div id="map_container"></div> 
+    <div id="config"><button value="start" style="height:100%;width:50%;" id="start_action">start</button><button value="stop" style="height:100%;width:50%;" id="stop_action">stop</button></div>
+    <script type="text/javascript">
+    	var move_id;	//移动的internal事件id
+    	var time_unit = 1000;	//刷新的单位时间
+    	var a_mark;	//图标点
+    	var collection;//事件集合
+	    map = new AMap.Map("map_container", {
+	        resizeEnable: true,
+	        zoom:14,
+        	center: [116.397428, 39.90923] 
+	    });
+	    map.plugin(["AMap.ToolBar"],function(){
+		    //加载工具条
+		    var tool = new AMap.ToolBar();
+		    map.addControl(tool);   
+			});
+	    
+      AMap.event.addDomListener(document.getElementById('start_action'), 'click', function() {
+        collection = start_action();
+      }, false);
+
+      AMap.event.addDomListener(document.getElementById('stop_action'), 'click', function() {
+        stop_action(collection);
+      }, false);
+
+      //functions
+      function start_action(location_set) {
+        if (!location_set) {
+          var location_set = [{'x':116.397428,'y':39.90923},{'x':116.397428,'y':39.90923}];
+        }    
+        var a_mark = [addMarker(location_set[0]['x'],location_set[0]['y'],'第一辆车'),addMarker(location_set[1]['x'],location_set[1]['y'],'第二辆车')];
+        var old_location_set = location_set;
+        //debugger;
+        id = setInterval(function(){
+        	var new_location_set = [get_simulator_data(1,location_set[0]['x'],location_set[0]['y']),get_simulator_data(1,location_set[1]['x'],location_set[1]['y'])];
+        	if (new_location_set) {
+        		
+	          var	temp_point = [new AMap.LngLat(new_location_set[0]['x'],new_location_set[0]['y']),new AMap.LngLat(new_location_set[1]['x'],new_location_set[1]['y'])]; 
+	          var distance = [temp_point[0].distance([old_location_set[0]['x'], old_location_set[0]['y']]),temp_point[1].distance([old_location_set[1]['x'], old_location_set[1]['y']])];
+	          var speed = [distance[0]/time_unit,distance[1]/time_unit];
+	          	// a_mark.moveTo({
+	          	//   lnglat: temp_point,
+	          	//   speed:1,
+	          	//   f:function(k){return k}
+	          	// });
+	          a_mark[0].moveTo(temp_point[0],speed[0],function(k){return k});
+            a_mark[1].moveTo(temp_point[1],speed[1],function(k){return k});
+	          old_location_set = new_location_set;
+        	}
+        },time_unit);
+        return {'id':id,'mark':a_mark};
+      }
+    	function stop_action({'id':move_id,'mark':a_mark}) {
+    		if (move_id) {
+    			clearInterval(id);
+    		}
+    		if (a_mark) {
+          $.each(a_mark,function(i,n){
+            deleteMarker(n);            
+          }) 
+    		}
+    	}
+       
+      // 实例化点标记
+      function addMarker(x,y,text) {
+        var mark_temp = new AMap.Marker({
+            //icon: "http://webapi.amap.com/theme/v1.3/markers/n/mark_b.png",
+            position: [x, y],
+            //map: map,
+            //position: [116.397428, 39.90923],
+            icon: "http://webapi.amap.com/images/car.png",
+            offset: new AMap.Pixel(-26, -13),
+            autoRotation: true
+        });
+        // 自定义点标记内容
+        var markerContent = document.createElement("div");
+        // 点标记中的图标
+        var markerImg = document.createElement("img");
+        markerImg.className = "markerlnglat";
+        markerImg.src = "http://webapi.amap.com/images/car.png";
+        markerContent.appendChild(markerImg);
+
+        // 点标记中的文本
+        var markerSpan = document.createElement("span");
+        markerSpan.className = 'marker';
+        markerSpan.innerHTML = text;
+        markerContent.appendChild(markerSpan);
+
+        mark_temp.setContent(markerContent); //更新点标记内容
+        mark_temp.setMap(map);
+        return mark_temp;
+      }
+      //
+      function deleteMarker(marker){
+      	if (marker) {
+            //marker.setMap(null);
+            //marker = null;
+            marker.hide();
+        }   
+      }
+      //从某个远点出发随机获取一个单位向量偏移量在l级别上的随机点坐标
+      function get_simulator_data(l,x,y) {
+        var op_flag = [Math.random(),Math.random()];
+        var num = [Math.random()*l*10,Math.random()*l*10];
+        if (op_flag[0] > 0.5) {
+          x_new = x + num[0];
+        }else{
+          x_new = x - num[0];
+        }
+        if (op_flag[1] > 0.5) {
+          y_new = y + num[1];
+        }else{
+          y_new = y - num[1];
+        }
+        return{'x':x_new.toFixed(6),'y':y_new.toFixed(5)};
+      }
+     
+    </script>
+    <div class="container">
+  	  <footer>
+          <p>&copy; <a href="http://yifans.org">yifans.org</a> 测试用页面，不对外提供任何服务也不提供任何关于此页面的交流，保留所有权利</p>
+          <p>京ICP备第16005063号 </p>
+      </footer>
+    </div>
+  </body>
+</html>
