@@ -56,9 +56,9 @@
     	var a_mark;	//图标点
     	var collection;//事件集合
 	    map = new AMap.Map("map_container", {
-	        resizeEnable: true,
-	        zoom:14,
-        	center: [116.397428, 39.90923] 
+	      resizeEnable: true,
+        center: [116.397428, 39.90923],
+        zoom: 14
 	    });
 	    map.plugin(["AMap.ToolBar"],function(){
 		    //加载工具条
@@ -73,42 +73,98 @@
       AMap.event.addDomListener(document.getElementById('stop_action'), 'click', function() {
         stop_action(collection);
       }, false);
+      
 
       //functions
       function start_action(location_set) {
         if (!location_set) {
           var location_set = [{'x':116.397428,'y':39.90923},{'x':116.397428,'y':39.90923}];
-        }    
-        var a_mark = [addMarker(location_set[0]['x'],location_set[0]['y'],'第一辆车'),addMarker(location_set[1]['x'],location_set[1]['y'],'第二辆车')];
+        } 
+
+        //点
+        var a_mark = [addMarker(location_set[0]['x'],location_set[0]['y'],'张三的车'),addMarker(location_set[1]['x'],location_set[1]['y'],'李四的车')];
+
+        //线数据来源
+        var line_arr = [new Array(),new Array()];
+        for (var i = 0; i < line_arr.length; i++) {
+          line_arr[i].push([location_set[i]['x'],location_set[i]['y']]);
+        }
+        // line_arr[0].push([location_set[0]['x'],location_set[0]['y']]); 
+        // line_arr[1].push([location_set[0]['x'],location_set[0]['y']]); 
+
+        //线
+        var poly_line = [
+          new AMap.Polyline({
+            path:line_arr[0], //设置线覆盖物路径  
+            strokeColor:"#3366FF", //线颜色  
+            strokeOpacity:1, //线透明度   
+            strokeWeight:5, //线宽  
+            strokeStyle:"solid", //线样式  
+            strokeDasharray:[10,5] //补充线样式   
+          }),
+          new AMap.Polyline({
+            path:line_arr[1], //设置线覆盖物路径  
+            strokeColor:"#FF3030", //线颜色  
+            strokeOpacity:1, //线透明度   
+            strokeWeight:5, //线宽  
+            strokeStyle:"dashed", //线样式  
+            strokeDasharray:[10,5] //补充线样式   
+          })   
+        ];
+
         var old_location_set = location_set;
         //debugger;
         id = setInterval(function(){
-        	var new_location_set = [get_simulator_data(1,location_set[0]['x'],location_set[0]['y']),get_simulator_data(1,location_set[1]['x'],location_set[1]['y'])];
+          var new_location_set = [];
+          for (var i = 0; i < a_mark.length; i++) {
+            if (i % 2 == 0) {
+              new_location_set[i] = get_simulator_data(0.0001,old_location_set[i]['x'],old_location_set[i]['y'],'-');
+            }else{
+              new_location_set[i] = get_simulator_data(0.0001,old_location_set[i]['x'],old_location_set[i]['y'],'+');
+            }
+            
+          }
         	if (new_location_set) {
         		
-	          var	temp_point = [new AMap.LngLat(new_location_set[0]['x'],new_location_set[0]['y']),new AMap.LngLat(new_location_set[1]['x'],new_location_set[1]['y'])]; 
-	          var distance = [temp_point[0].distance([old_location_set[0]['x'], old_location_set[0]['y']]),temp_point[1].distance([old_location_set[1]['x'], old_location_set[1]['y']])];
-	          var speed = [distance[0]/time_unit,distance[1]/time_unit];
-	          	// a_mark.moveTo({
-	          	//   lnglat: temp_point,
-	          	//   speed:1,
-	          	//   f:function(k){return k}
-	          	// });
-	          a_mark[0].moveTo(temp_point[0],speed[0],function(k){return k});
-            a_mark[1].moveTo(temp_point[1],speed[1],function(k){return k});
+            var temp_point = [];
+            var distance = [];
+            var speed = [];
+	          
+            for (var i = 0; i < a_mark.length; i++) {
+              temp_point[i] = new AMap.LngLat(new_location_set[i]['x'],new_location_set[i]['y']);
+              distance[i] = temp_point[i].distance([old_location_set[i]['x'], old_location_set[i]['y']]);
+              speed[i] = distance[i]/time_unit*3600
+
+              a_mark[i].moveTo(temp_point[i],speed[i],function(k){return k;});
+              // a_mark.moveTo({
+              //   lnglat: temp_point,
+              //   speed:1,
+              //   f:function(k){return k}
+              // });
+              line_arr[i].push([new_location_set[i]['x'],new_location_set[i]['y']]);
+              if (line_arr[i].length == 2) {
+                poly_line[i].setMap(map);
+              }else{
+                poly_line[i].setMap(null);
+                poly_line[i].setPath(line_arr[i]);
+                poly_line[i].setMap(map);
+              }
+            }
+            
 	          old_location_set = new_location_set;
         	}
         },time_unit);
         return {'id':id,'mark':a_mark};
       }
     	function stop_action({'id':move_id,'mark':a_mark}) {
+        if (a_mark) {
+          $.each(a_mark,function(i,n){
+            deleteMarker(n);
+            window.location.reload();       
+          }) 
+        }
     		if (move_id) {
     			clearInterval(id);
-    		}
-    		if (a_mark) {
-          $.each(a_mark,function(i,n){
-            deleteMarker(n);            
-          }) 
     		}
     	}
        
@@ -141,27 +197,29 @@
         mark_temp.setMap(map);
         return mark_temp;
       }
+
       //
       function deleteMarker(marker){
       	if (marker) {
             //marker.setMap(null);
             //marker = null;
-            marker.hide();
+            //marker.hide();
+            map.remove(marker);
         }   
       }
       //从某个远点出发随机获取一个单位向量偏移量在l级别上的随机点坐标
-      function get_simulator_data(l,x,y) {
+      function get_simulator_data(l,x,y,operator = '+') {
         var op_flag = [Math.random(),Math.random()];
         var num = [Math.random()*l*10,Math.random()*l*10];
-        if (op_flag[0] > 0.5) {
-          x_new = x + num[0];
+        if (operator == '-') {
+          x_new = Number(x) - num[0];
         }else{
-          x_new = x - num[0];
+          x_new = Number(x) + num[0];
         }
-        if (op_flag[1] > 0.5) {
-          y_new = y + num[1];
+        if (operator == '-') {
+          y_new = Number(y) - num[1];
         }else{
-          y_new = y - num[1];
+          y_new = Number(y) + num[1];
         }
         return{'x':x_new.toFixed(6),'y':y_new.toFixed(5)};
       }
